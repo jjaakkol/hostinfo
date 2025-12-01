@@ -9,8 +9,8 @@ os-info() {
 	else
 		PRETTY_NAME="N/A"
 	fi
-	uptime="uptime $(read a b < /proc/uptime; echo $(( $(echo $a | cut -d . -f 1-1) /24/60/60 )) )d"
-	echo '# Host:' $(uname -n), $PRETTY_NAME, $(uname -r), $uptime
+	#uptime="uptime $(read a b < /proc/uptime; echo $(( $(echo $a | cut -d . -f 1-1) /24/60/60 )) )d"
+	echo '# Host:' $(uname -n), $PRETTY_NAME, $(uname -r)
 }
 
 hw-info() {
@@ -18,22 +18,20 @@ hw-info() {
 	[ -z "$MHZ" ] && MHZ=$( egrep "^cpu MHz" /proc/cpuinfo | head -1 | sed 's/.*: \([0-9][0-9]*\)\..*/\1MHz/' )
 	[ -z "$MHZ" ] && MHZ="N/A"
 
-	# Try Display controller, then 3D controller, then VGA controller to attempt to guess
-	# the most interesting one
-	GPU="N/A"
-	[ -n "$(which lspci)" ] && for try in 0380 0302 0300; do
-		lspci="$(lspci -mm -d "*:*:$try" | tail -1)"
-		[ -z "$lspci" ] && continue
-		eval set "$lspci"
-		GPU="$4"
-		break
-	done
-
 	echo '#   hw:' $(grep "model name" /proc/cpuinfo | head -1 | sed 's/.*: //') \
 		"$MHZ", \
 		$(egrep "^cpu cores" /proc/cpuinfo | head -1 | { read a b cores; echo $cores; } ) cores, \
-		$(( $(egrep '^MemTotal:' /proc/meminfo | { read a mem b; echo $mem ;} ) / 1024 / 1024 +1))GB mem, \
-		GPU "$GPU"
+		$(( $(egrep '^MemTotal:' /proc/meminfo | { read a mem b; echo $mem ;} ) / 1024 / 1024 +1))GB mem
+
+	# Try Display controller, then 3D controller, then VGA controller to attempt to guess
+	# the most interesting one
+	[ -n "$(which lspci)" ] && for try in 0380 0302 0300; do
+		lspci -mm -d "*:*:$try" | while read gpu; do
+			eval set "$gpu"
+			echo "#  GPU:" "$3 $4"
+		done
+	done
+
 }
 
 
