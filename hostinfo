@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # Written by jani.jaakkola@helsinki.fi for ticket https://version.helsinki.fi/it-for-science/hpc/-/issues/712
+# Maintained in https://github.com/jjaakkol/hostinfo
 
 os-info() {
 	if [ -f /etc/os-release ]; then
@@ -20,19 +21,19 @@ hw-info() {
 	# Try Display controller, then 3D controller, then VGA controller to attempt to guess
 	# the most interesting one
 	GPU="N/A"
-	for try in "Display controller" "3D controller" "VGA compatible controller"; do
-		lspci="$(lspci -mm | grep "$try" | tail -1)"
+	[ -n "$(which lspci)" ] && for try in 0380 0302 0300; do
+		lspci="$(lspci -mm -d "*:*:$try" | tail -1)"
 		[ -z "$lspci" ] && continue
-		eval set $lspci
-		GPU=$4
+		eval set "$lspci"
+		GPU="$4"
 		break
 	done
 
 	echo '#   hw:' $(grep "model name" /proc/cpuinfo | head -1 | sed 's/.*: //') \
-		$MHZ, \
-		$(egrep -c "^processor" /proc/cpuinfo) cores, \
+		"$MHZ", \
+		$(egrep "^cpu cores" /proc/cpuinfo | head -1 | { read a b cores; echo $cores; } ) cores, \
 		$(( $(egrep '^MemTotal:' /proc/meminfo | { read a mem b; echo $mem ;} ) / 1024 / 1024 +1))GB mem, \
-		GPU $GPU
+		GPU "$GPU"
 }
 
 
