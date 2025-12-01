@@ -1,0 +1,59 @@
+#!/bin/bash
+
+# Written by jani.jaakkola@helsinki.fi for ticket https://version.helsinki.fi/it-for-science/hpc/-/issues/712
+
+os-info() {
+	if [ -f /etc/os-release ]; then
+		. /etc/os-release
+	else
+		PRETTY_NAME="N/A"
+	fi
+	uptime="uptime $(read a b < /proc/uptime; echo $(( $(echo $a | cut -d . -f 1-1) /24/60/60 )) )d"
+	echo '# Host:' $(uname -n), $PRETTY_NAME, $(uname -r), $uptime
+}
+
+hw-info() {
+	MHZ=$(cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq 2>/dev/null |sed 's/...$/MHz/')
+	[ -z "$MHZ" ] && MHZ=$( egrep "^cpu MHz" /proc/cpuinfo | head -1 | sed 's/.*: \([0-9][0-9]*\)\..*/\1MHz/' )
+	[ -z "$MHZ" ] && MHZ="N/A"
+
+	# Try Display controller, then 3D controller, then VGA controller to attempt to guess
+	# the most interesting one
+	GPU="N/A"
+	for try in "Display controller" "3D controller" "VGA compatible controller"; do
+		lspci="$(lspci -mm | grep "$try" | tail -1)"
+		[ -z "$lspci" ] && continue
+		eval set $lspci
+		GPU=$4
+		break
+	done
+
+	echo '#   hw:' $(grep "model name" /proc/cpuinfo | head -1 | sed 's/.*: //') \
+		$MHZ, \
+		$(egrep -c "^processor" /proc/cpuinfo) cores, \
+		$(( $(egrep '^MemTotal:' /proc/meminfo | { read a mem b; echo $mem ;} ) / 1024 / 1024 +1))GB mem, \
+		GPU $GPU
+}
+
+
+slurm-info() {
+	echo -n "# job : "
+	echo -n "$(date)"
+	echo -n " MEM=$(( $(ulimit -m) /1024/1024))G"
+	for info in JOB_ID JOB_USER NNODES NTASKS SUBMIT_DIR JOB_NAME; do
+		value=$(eval echo \$SLURM_$info)
+		echo -n " $info=$value"
+	done
+	echo ""
+}
+
+vendor-info() {
+	echo "#  Sys:" $(cat /sys/devices/virtual/dmi/id/sys_vendor), \
+		$(cat /sys/devices/virtual/dmi/id/product_family) \
+		"($(cat /sys/devices/virtual/dmi/id/product_name))"
+}
+
+os-info
+vendor-info
+hw-info
+[ -z "$SLURM_JOB_ID" ] || slurm-info
